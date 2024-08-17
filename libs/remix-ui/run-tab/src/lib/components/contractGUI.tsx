@@ -9,6 +9,9 @@ import { Dropdown } from 'react-bootstrap'
 
 const txFormat = remixLib.execution.txFormat
 const txHelper = remixLib.execution.txHelper
+let startX = null
+let curX = null
+let buttonMinWidth = null;
 export function ContractGUI(props: ContractGUIProps) {
   const [title, setTitle] = useState<string>('')
   const [basicInput, setBasicInput] = useState<string>('')
@@ -28,6 +31,8 @@ export function ContractGUI(props: ContractGUIProps) {
   const [proxyAddress, setProxyAddress] = useState<string>('')
   const [proxyAddressError, setProxyAddressError] = useState<string>('')
   const [showDropdown, setShowDropdown] = useState<boolean>(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [buttonWidth, setButtonWidth] = useState(null)
   const multiFields = useRef<Array<HTMLInputElement | null>>([])
   const initializeFields = useRef<Array<HTMLInputElement | null>>([])
   const basicInputRef = useRef<HTMLInputElement>()
@@ -81,6 +86,44 @@ export function ContractGUI(props: ContractGUIProps) {
       })
     }
   }, [props.lookupOnly, props.funcABI, title])
+
+  useEffect(() => {
+    const myBtn = document.querySelector(".udapp_contractActionsContainerSingle .udapp_instanceButton ") as HTMLElement;
+    if (myBtn) {
+      setButtonWidth(myBtn.offsetWidth)
+      const computedStyle = window.getComputedStyle(myBtn)
+      const minWidthValue = computedStyle.getPropertyValue('min-width');
+      buttonMinWidth = minWidthValue
+    }
+  }, []);
+
+  useEffect(() => {  // todo. make sure it dont goes out of bound, and if size of parent container changes then revert back, also try all size changes when does one
+    const handleMouseMove = (event) => {
+      if (isDragging == true && buttonWidth) {
+        curX = event.clientX
+        if (buttonMinWidth && (buttonWidth + curX - startX) < buttonMinWidth){
+          handleMouseUp()
+          return
+        }
+        if (Math.abs(startX - curX) > 10) {
+          setButtonWidth(buttonWidth + curX - startX)
+        }
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      document.body.style.userSelect = 'auto'
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging])
 
   const getEncodedCall = () => {
     const multiString = getMultiValsString(multiFields.current)
@@ -196,7 +239,7 @@ export function ContractGUI(props: ContractGUIProps) {
                   !proxyAddressError && props.clickCallBack(props.funcABI.inputs, proxyAddress, ['Upgrade with Proxy'])
                 },
                 'Cancel',
-                () => {},
+                () => { },
                 'btn-warning',
                 'btn-secondary'
               )
@@ -209,7 +252,7 @@ export function ContractGUI(props: ContractGUIProps) {
                   !proxyAddressError && props.clickCallBack(props.funcABI.inputs, proxyAddress, ['Upgrade with Proxy'])
                 },
                 'Cancel',
-                () => {},
+                () => { },
                 'btn-warning',
                 'btn-secondary'
               )
@@ -278,9 +321,8 @@ export function ContractGUI(props: ContractGUIProps) {
 
   return (
     <div
-      className={`udapp_contractProperty ${
-        (props.funcABI.inputs && props.funcABI.inputs.length > 0) || props.funcABI.type === 'fallback' || props.funcABI.type === 'receive' ? 'udapp_hasArgs' : ''
-      }`}
+      className={`udapp_contractProperty ${(props.funcABI.inputs && props.funcABI.inputs.length > 0) || props.funcABI.type === 'fallback' || props.funcABI.type === 'receive' ? 'udapp_hasArgs' : ''
+        }`}
     >
       <div className="udapp_contractActionsContainerSingle pt-2" style={{ display: toggleContainer ? 'none' : 'flex' }}>
         <CustomTooltip
@@ -302,11 +344,18 @@ export function ContractGUI(props: ContractGUIProps) {
               data-id={`${buttonOptions.dataId}`}
               data-title={`${buttonOptions.title}`}
               disabled={(toggleUpgradeImp && !proxyAddress) || props.disabled || (props.inputs !== '' && basicInput === '')}
+              style={{ width: buttonWidth ? `${buttonWidth}px` : 'auto' }}
             >
               {title}
             </button>
           </div>
         </CustomTooltip>
+        <div
+          className='button-resizer'
+          onMouseDown={(e) => { setIsDragging(true); startX = e.clientX; document.body.style.userSelect = 'none'; }}
+          style={{ width: "5px", cursor: "ew-resize" }}
+        >
+        </div>
         <input
           className="form-control"
           data-id={props.funcABI.type === 'fallback' || props.funcABI.type === 'receive' ? `'(${props.funcABI.type}')` : 'multiParamManagerBasicInputField'}
